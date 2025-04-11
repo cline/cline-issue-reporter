@@ -51,6 +51,7 @@ async function getApiMetadata(): Promise<{
   const platform = os.platform();
   const homeDir = os.homedir();
   const ideApps = ["Code", "Cursor", "Windsurf"];
+  const idePath = ["User", "globalStorage", "saoudrizwan.claude-dev", "tasks"];
   let possiblePaths: string[] = [];
 
   // Determine paths based on operating system
@@ -61,42 +62,16 @@ async function getApiMetadata(): Promise<{
       throw new Error("APPDATA environment variable is not defined");
     }
 
-    possiblePaths = ideApps.map((app) =>
-      path.join(
-        appData,
-        app,
-        "User",
-        "globalStorage",
-        "saoudrizwan.claude-dev",
-        "tasks"
-      )
-    );
+    possiblePaths = ideApps.map((app) => path.join(appData, app, ...idePath));
   } else if (platform === "darwin") {
     // macOS paths: Library/Application Support/{app}/User/globalStorage/...
     possiblePaths = ideApps.map((app) =>
-      path.join(
-        homeDir,
-        "Library",
-        "Application Support",
-        app,
-        "User",
-        "globalStorage",
-        "saoudrizwan.claude-dev",
-        "tasks"
-      )
+      path.join(homeDir, "Library", "Application Support", app, ...idePath)
     );
   } else if (platform === "linux") {
     // Linux paths: .config/{app}/User/globalStorage/... (common pattern)
     possiblePaths = ideApps.map((app) =>
-      path.join(
-        homeDir,
-        ".config",
-        app,
-        "User",
-        "globalStorage",
-        "saoudrizwan.claude-dev",
-        "tasks"
-      )
+      path.join(homeDir, ".config", app, ...idePath)
     );
   } else {
     throw new Error(`Unsupported operating system: ${platform}`);
@@ -395,16 +370,7 @@ ${description}`;
             content: [
               {
                 type: "text",
-                text: JSON.stringify(
-                  {
-                    title: title,
-                    body: formattedBody,
-                    labels: labels || [],
-                    repository: repo,
-                  },
-                  null,
-                  2
-                ),
+                text: formattedBody,
               },
             ],
           };
@@ -426,8 +392,9 @@ ${description}`;
 
         // 5. Execute gh Command
         console.log(`Executing: ${ghCommand}`); // Log the command for debugging
-        const { stdout: ghStdout, stderr: ghStderr } =
-          await execAsync(ghCommand);
+        const { stdout: ghStdout, stderr: ghStderr } = await execAsync(
+          ghCommand
+        );
 
         if (ghStderr) {
           // gh often prints success messages to stderr, check stdout first
