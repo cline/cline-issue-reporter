@@ -47,138 +47,140 @@ async function getApiMetadata(): Promise<{
   apiProvider: string;
   modelName: string;
   ideUsed: string;
-}> {
-  const platform = os.platform();
-  const homeDir = os.homedir();
-  const ideApps = ["Code", "Cursor", "Windsurf"];
-  const idePath = ["User", "globalStorage", "saoudrizwan.claude-dev", "tasks"];
-  let possiblePaths: string[] = [];
+}> {    
+    const platform = os.platform();
+    const homeDir = os.homedir();
+    const ideApps = ["Code", "Cursor", "Windsurf"];
+    const idePath = ["User", "globalStorage", "saoudrizwan.claude-dev", "tasks"];
+    let possiblePaths: string[] = [];
 
-  // Determine paths based on operating system
-  if (platform === "win32") {
-    // Windows paths: AppData\Roaming\{app}\User\globalStorage\...
-    const appData = process.env.APPDATA;
-    if (!appData) {
-      throw new Error("APPDATA environment variable is not defined");
-    }
-
-    possiblePaths = ideApps.map((app) => path.join(appData, app, ...idePath));
-  } else if (platform === "darwin") {
-    // macOS paths: Library/Application Support/{app}/User/globalStorage/...
-    possiblePaths = ideApps.map((app) =>
-      path.join(homeDir, "Library", "Application Support", app, ...idePath)
-    );
-  } else if (platform === "linux") {
-    // Linux paths: .config/{app}/User/globalStorage/... (common pattern)
-    possiblePaths = ideApps.map((app) =>
-      path.join(homeDir, ".config", app, ...idePath)
-    );
-  } else {
-    throw new Error(`Unsupported operating system: ${platform}`);
-  }
-
-  let highestOverallTaskNumber = -1;
-  let finalBasePath = null;
-
-  // Find the IDE path with the highest task number
-  for (const basePath of possiblePaths) {
-    try {
-      await fs.promises.stat(basePath); // Check if path exists
-
-      // Read all subdirectories
-      const entries = await fs.promises.readdir(basePath, {
-        withFileTypes: true,
-      });
-      const numericDirs = entries
-        .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
-        .map((entry) => parseInt(entry.name, 10));
-
-      if (numericDirs.length > 0) {
-        const currentHighestTaskNumber = Math.max(...numericDirs);
-
-        if (currentHighestTaskNumber > highestOverallTaskNumber) {
-          highestOverallTaskNumber = currentHighestTaskNumber;
-          finalBasePath = basePath;
-        }
+    // Determine paths based on operating system
+    if (platform === "win32") {
+      // Windows paths: Try to use APPDATA env var first, fall back to constructed path
+      // May require Cline MCP settings for APPDATA env variable
+      let appData;
+      if (process.env.APPDATA) {
+        appData = process.env.APPDATA;
+      } else {
+        appData = path.join(homeDir, "AppData", "Roaming");
       }
-    } catch (error) {
-      // Path doesn't exist or can't be accessed, continue to next path
-      continue;
+      possiblePaths = ideApps.map((app) => path.join(appData, app, ...idePath));
+    } else if (platform === "darwin") {
+      // macOS paths: Library/Application Support/{app}/User/globalStorage/...
+      possiblePaths = ideApps.map((app) =>
+        path.join(homeDir, "Library", "Application Support", app, ...idePath)
+      );
+    } else if (platform === "linux") {
+      // Linux paths: .config/{app}/User/globalStorage/... (common pattern)
+      possiblePaths = ideApps.map((app) =>
+        path.join(homeDir, ".config", app, ...idePath)
+      );
+    } else {
+      throw new Error(`Unsupported operating system: ${platform}`);
     }
-  }
 
-  if (finalBasePath === null) {
-    throw new Error("Could not find any valid task directories");
-  }
+    let highestOverallTaskNumber = -1;
+    let finalBasePath = null;
 
-  // Extract IDE name from the path
-  let ideUsed = "Unknown";
-  const ideNames = ["Code", "Cursor", "Windsurf"];
-  for (const ideName of ideNames) {
-    if (finalBasePath.includes(ideName)) {
-      ideUsed = ideName;
-      break;
+    // Find the IDE path with the highest task number
+    for (const basePath of possiblePaths) {
+      try {
+        await fs.promises.stat(basePath); // Check if path exists
+
+        // Read all subdirectories
+        const entries = await fs.promises.readdir(basePath, {
+          withFileTypes: true,
+        });
+        const numericDirs = entries
+          .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+          .map((entry) => parseInt(entry.name, 10));
+
+        if (numericDirs.length > 0) {
+          const currentHighestTaskNumber = Math.max(...numericDirs);
+
+          if (currentHighestTaskNumber > highestOverallTaskNumber) {
+            highestOverallTaskNumber = currentHighestTaskNumber;
+            finalBasePath = basePath;
+          }
+        }
+      } catch (error) {
+        // Path doesn't exist or can't be accessed, continue to next path
+        continue;
+      }
     }
-  }
 
-  // Get the task_metadata.json file
-  const metadataFilePath = path.join(
-    finalBasePath,
-    highestOverallTaskNumber.toString(),
-    "task_metadata.json"
-  );
+    if (finalBasePath === null) {
+     throw new Error("Could not find any valid task directories");
+    }
 
-  try {
-    const metadataContent = await fs.promises.readFile(
-      metadataFilePath,
-      "utf-8"
+    // Extract IDE name from the path
+    let ideUsed = "Unknown";
+    const ideNames = ["Code", "Cursor", "Windsurf"];
+    for (const ideName of ideNames) {
+      if (finalBasePath.includes(ideName)) {
+        ideUsed = ideName;
+        break;
+      }
+    }
+
+    // Get the task_metadata.json file
+    const metadataFilePath = path.join(
+      finalBasePath,
+      highestOverallTaskNumber.toString(),
+      "task_metadata.json"
     );
-    const metadata = JSON.parse(metadataContent);
 
-    if (
-      !metadata.model_usage ||
-      !Array.isArray(metadata.model_usage) ||
-      metadata.model_usage.length === 0
-    ) {
-      throw new Error(
+    try {
+      const metadataContent = await fs.promises.readFile(
+        metadataFilePath,
+        "utf-8"
+      );
+      const metadata = JSON.parse(metadataContent);
+
+      if (
+        !metadata.model_usage ||
+        !Array.isArray(metadata.model_usage) ||
+        metadata.model_usage.length === 0
+      ) {
+         throw new Error(
         "Invalid metadata format: model_usage array missing or empty"
+         );
+      }
+
+      // Find the latest entry by timestamp
+      interface ModelUsageEntry {
+        ts: number;
+        model_id: string;
+        model_provider_id: string;
+        mode?: string;
+      }
+
+      const latestEntry = metadata.model_usage.reduce(
+        (latest: ModelUsageEntry | null, current: ModelUsageEntry) => {
+          return !latest || current.ts > latest.ts ? current : latest;
+        },
+        null
       );
+
+      if (
+        !latestEntry ||
+        !latestEntry.model_provider_id ||
+        !latestEntry.model_id
+      ) {
+        throw new Error(
+          "Invalid metadata format: latest entry missing required fields"
+        );
+      }
+
+      return {
+        apiProvider: latestEntry.model_provider_id,
+        modelName: latestEntry.model_id,
+        ideUsed: ideUsed,
+      };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error reading or parsing metadata file: ${errorMessage}`);
     }
-
-    // Find the latest entry by timestamp
-    interface ModelUsageEntry {
-      ts: number;
-      model_id: string;
-      model_provider_id: string;
-      mode?: string;
-    }
-
-    const latestEntry = metadata.model_usage.reduce(
-      (latest: ModelUsageEntry | null, current: ModelUsageEntry) => {
-        return !latest || current.ts > latest.ts ? current : latest;
-      },
-      null
-    );
-
-    if (
-      !latestEntry ||
-      !latestEntry.model_provider_id ||
-      !latestEntry.model_id
-    ) {
-      throw new Error(
-        "Invalid metadata format: latest entry missing required fields"
-      );
-    }
-
-    return {
-      apiProvider: latestEntry.model_provider_id,
-      modelName: latestEntry.model_id,
-      ideUsed: ideUsed,
-    };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Error reading or parsing metadata file: ${errorMessage}`);
-  }
 }
 
 // Input validation function
@@ -323,23 +325,91 @@ class ClineIssueReporterServer {
         try {
           const platform = os.platform();
           const isWindows = platform === "win32";
-          const searchCmd = isWindows ? "findstr" : "grep";
-          const ides = ["code", "cursor", "windsurf"]; // IDEs to try
-
-          // Try each IDE until we get a version
-          for (const ide of ides) {
-            try {
-              const command = `${ide} --list-extensions --show-versions | ${searchCmd} saoudrizwan.claude-dev`;
-              const { stdout } = await execAsync(command);
-
-              const match = stdout.match(/saoudrizwan\.claude-dev@([\d.]+)/);
-              if (match && match[1]) {
-                clineVersion = match[1];
-                break; // Found a version, exit the loop
+          
+          if (isWindows) {
+            // On Windows, try to find the extension directly in the file system
+            const homeDir = os.homedir();
+            const extensionPaths = [];
+            
+            // Add possible extension paths for different IDEs on Windows
+            if (process.env.APPDATA) {
+              const appData = process.env.APPDATA;
+              extensionPaths.push(
+                path.join(appData, "Code", "User", "extensions"),
+                path.join(appData, "Cursor", "User", "extensions"),
+                path.join(appData, "Windsurf", "User", "extensions")
+              );
+            } else {
+              const appData = path.join(homeDir, "AppData", "Roaming");
+              extensionPaths.push(
+                path.join(appData, "Code", "User", "extensions"),
+                path.join(appData, "Cursor", "User", "extensions"),
+                path.join(appData, "Windsurf", "User", "extensions")
+              );
+            }
+            
+            // Also try .vscode/extensions in the home directory
+            extensionPaths.push(path.join(homeDir, ".vscode", "extensions"));
+            
+            // Try to find the extension in each path
+            for (const extPath of extensionPaths) {
+              try {
+                const entries = await fs.promises.readdir(extPath, { withFileTypes: true });
+                
+                // Look for directories that start with "saoudrizwan.claude-dev"
+                for (const entry of entries) {
+                  if (entry.isDirectory() && entry.name.startsWith("saoudrizwan.claude-dev")) {
+                    // Extract version from directory name (format: saoudrizwan.claude-dev-x.y.z)
+                    const versionMatch = entry.name.match(/saoudrizwan\.claude-dev-?([\d.]+)/);
+                    if (versionMatch && versionMatch[1]) {
+                      clineVersion = versionMatch[1];
+                      break;
+                    }
+                    
+                    // If no version in directory name, try to read package.json
+                    try {
+                      const packageJsonPath = path.join(extPath, entry.name, "package.json");
+                      const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, "utf-8"));
+                      if (packageJson.version) {
+                        clineVersion = packageJson.version;
+                        break;
+                      }
+                    } catch (packageError) {
+                      // Failed to read package.json, continue
+                      console.error("Error reading package.json:", packageError);
+                    }
+                  }
+                }
+                
+                if (clineVersion !== "unknown") {
+                  break; // Found version, exit the loop
+                }
+              } catch (dirError) {
+                // This directory doesn't exist or can't be accessed, continue to next one
+                console.error(`Error accessing ${extPath}:`, dirError);
+                continue;
               }
-            } catch (e) {
-              // This IDE command failed, continue to next one
-              continue;
+            }
+          } else {
+            // For non-Windows platforms, use the original CLI approach
+            const searchCmd = "grep";
+            const ides = ["code", "cursor", "windsurf"]; // IDEs to try
+
+            // Try each IDE until we get a version
+            for (const ide of ides) {
+              try {
+                const command = `${ide} --list-extensions --show-versions | ${searchCmd} saoudrizwan.claude-dev`;
+                const { stdout } = await execAsync(command);
+
+                const match = stdout.match(/saoudrizwan\.claude-dev@([\d.]+)/);
+                if (match && match[1]) {
+                  clineVersion = match[1];
+                  break; // Found a version, exit the loop
+                }
+              } catch (e) {
+                // This IDE command failed, continue to next one
+                continue;
+              }
             }
           }
 

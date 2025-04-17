@@ -97,6 +97,26 @@ Add to Cline MCP settings:
 }
 ```
 
+### Windows-Specific Configuration
+
+On Windows, you may need to explicitly set the APPDATA environment variable in the MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "cline-issue-reporter": {
+      "command": "node",
+      "args": ["/path/to/cline-issue-reporter/build/index.js"],
+      "env": {
+        "APPDATA": "C:\\Users\\[username]\\AppData\\Roaming"
+      }
+    }
+  }
+}
+```
+
+Replace `[username]` with your Windows username.
+
 ## Usage Example
 
 To report an issue:
