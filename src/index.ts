@@ -259,13 +259,13 @@ class ClineIssueReporterServer {
         {
           name: "preview_cline_issue",
           description:
-            "Previews how an issue would look when reported to GitHub. Gathers OS info and Cline version automatically but does not submit the issue. This tool is always called first to preview the issue before reporting it.",
+            "**Call this tool first**. Previews how an issue would look when reported to GitHub. Gathers OS info and Cline version automatically but does not submit the issue. This tool is always called first to preview the issue before reporting it.",
           inputSchema: inputSchema,
         },
         {
           name: "report_cline_issue",
           description:
-            "Reports an issue to a GitHub repository using the locally authenticated GitHub CLI (`gh`). Gathers OS info and Cline version automatically.",
+            "**Call this tool after preview_cline_issue**. Reports an issue to a GitHub repository using the locally authenticated GitHub CLI (`gh`). Gathers OS info and Cline version automatically.",
           inputSchema: inputSchema,
         },
       ],

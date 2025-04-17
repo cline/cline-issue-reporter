@@ -1,11 +1,11 @@
 {
-  "name": "cline-issue-reporter",
+  "name": "cline-community",
   "version": "0.1.0",
   "description": "A Model Context Protocol server",
   "private": true,
   "type": "module",
   "bin": {
-    "cline-issue-reporter": "./build/index.js"
+    "cline-community": "./build/index.js"
   },
   "files": [
     "build"

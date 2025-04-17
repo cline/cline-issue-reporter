@@ -1,4 +1,4 @@
-# Cline Issue Reporter MCP Server
+# Cline Community MCP Server
 
 A Model Context Protocol server that simplifies reporting issues from Cline to GitHub.
 
@@ -61,6 +61,7 @@ The server automatically collects:
 
 - GitHub CLI (`gh`) installed and authenticated
 - Access to task metadata directories (where Cline stores information about the current task)
+- Github token
 
 ## Installation
 
@@ -82,16 +83,16 @@ Add the server to your MCP settings:
 
 Add to Cline MCP settings:
 
-- **macOS**: `~/Library/Application Support/[Code|Cursor]/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-- **Windows**: `%APPDATA%/[Code|Cursor]/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-- **Linux**: `~/.config/[Code|Cursor]/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- **macOS**: `~/Library/Application Support/[Code|Cursor|Windsurf]/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- **Windows**: `%APPDATA%/[Code|Cursor|Windsurf]/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- **Linux**: `~/.config/[Code|Cursor|Windsurf]/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
 
 ```json
 {
   "mcpServers": {
-    "cline-issue-reporter": {
+    "cline-community": {
       "command": "node",
-      "args": ["/path/to/cline-issue-reporter/build/index.js"]
+      "args": ["/path/to/cline-community/build/index.js"]
     }
   }
 }
@@ -104,9 +105,9 @@ On Windows, you may need to explicitly set the APPDATA environment variable in t
 ```json
 {
   "mcpServers": {
-    "cline-issue-reporter": {
+    "cline-community": {
       "command": "node",
-      "args": ["/path/to/cline-issue-reporter/build/index.js"],
+      "args": ["/path/to/cline-community/build/index.js"],
       "env": {
         "APPDATA": "C:\\Users\\[username]\\AppData\\Roaming"
       }
