@@ -20,7 +20,7 @@ This MCP server provides tools to streamline the process of reporting issues fro
 
 ### `preview_cline_issue`
 
-Previews how an issue would look when reported to GitHub without actually submitting it.
+Previews how an issue would look when reported to GitHub without actually submitting it. This should be in the autoApprove list by default
 
 **Parameters**:
 
@@ -76,29 +76,57 @@ npm run build
 
 ### Authenticate with GH CLI
 
-Log in to GitHub
-
 ```bash
+# Log in to GitHub
 gh auth login
 ```
 
-Select GitHub.com for where you use GitHub
+1. Select GitHub.com for where you use GitHub
 
-Select HTTPS for your your preferred protocol
+```
+? Where do you use GitHub?  [Use arrows to move, type to filter]
+> GitHub.com
+  Other
+```
 
-Indicate Yes that you want to authenticate
+2. Select HTTPS for your your preferred protocol
 
-Select Login with a web browser
+```
+? What is your preferred protocol for Git operations on this host?  [Use arrows to move, type to filter]
+> HTTPS
+  SSH
+```
 
-Copy your one-time code
+3. Indicate Yes that you want to authenticate
 
-Presss Enter
+`
+? Authenticate Git with your GitHub credentials? (Y/n)
+`
 
-Login in the bowser
+4. Select Login with a web browser
 
-Enter the code that you copied
+```
+? How would you like to authenticate GitHub CLI?  [Use arrows to move, type to filter]
+> Login with a web browser
+  Paste an authentication token
+```
 
-Continue
+5. Copy your one-time code
+
+```
+! First copy your one-time code: XXXX-XXXX
+Press Enter to open https://github.com/login/device in your browser... 
+```
+
+6. Presss Enter
+
+7. Login in the bowser
+
+8. Enter the code that you copied
+
+9. Continue
+
+10. You're ready to use cline community!
 
 ### Configure with Cline
 
@@ -116,8 +144,16 @@ Add to Cline MCP settings:
 {
   "mcpServers": {
     "cline-community": {
+      "autoApprove": [
+        "preview_cline_issue"
+      ],
+      "timeout": 10,
       "command": "node",
-      "args": ["/path/to/cline-community/build/index.js"]
+      "args": ["/path/to/cline-community/build/index.js"],
+      "env": {
+        "GH_TOKEN": "token response received after gh auth login flow"
+      },
+      "transportType": "stdio"
     }
   }
 }

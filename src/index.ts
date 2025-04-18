@@ -82,6 +82,13 @@ const inputSchema = {
   required: ["description", "title"],
 };
 
+// Empty schema for authenticate_github tool
+const emptySchema = {
+  type: "object",
+  properties: {},
+  required: [],
+};
+
 class ClineCommunityServer {
   private server: Server;
   private platform = os.platform();
@@ -283,13 +290,91 @@ class ClineCommunityServer {
     }
   }
 
+  /**
+   * Handle GitHub authentication
+   * Checks current auth status and initiates login if needed
+   */
+  private async handleAuthenticateGithub(): Promise<{
+    content: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  }> {
+    try {
+      // First check if gh CLI is installed and get current auth status
+      const { stdout: statusOutput, stderr: statusError } = await execAsync('gh auth status');
+
+      // If we get here, gh is installed and we have status info
+      if (statusOutput.includes("Logged in to")) {
+        // User is already authenticated
+        return {
+          content: [
+            {
+              type: "text",
+              text: `GitHub CLI is already authenticated: ${statusOutput.trim()}`,
+            },
+          ],
+        };
+      } else {
+        // User is not authenticated, initiate login process
+        // This is an interactive process that will prompt the user in their terminal
+        exec('gh auth login', (error, stdout, stderr) => {
+          if (error) {
+            console.error(`GitHub authentication failed: ${error.message}`);
+            return;
+          }
+          console.log(`GitHub authentication process initiated in terminal.`);
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: "GitHub authentication process has been initiated in your terminal. Please complete the interactive login process there.",
+            },
+          ],
+        };
+      }
+    } catch (error: any) {
+      console.error("Error executing GitHub authentication:", error);
+
+      // Check for common errors
+      if (error.stderr && error.stderr.includes("command not found")) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Error: GitHub CLI ('gh') not found. Please install it first: https://cli.github.com/",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Generic error
+      return {
+        content: [
+          {
+            type: "text",
+            text: `GitHub authentication failed: ${error.stderr || error.message || String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
   private setupToolHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
+          name: "authenticate_github",
+          description:
+            "**Call this tool if the user is not already authenticated and does not have a valid GH_TOKEN**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal.",
+          inputSchema: emptySchema,
+        },
+        {
           name: "preview_cline_issue",
           description:
-            "**Call this tool first**. Previews how an issue would look when reported to GitHub. Gathers OS info and Cline version automatically but does not submit the issue. This tool is always called first to preview the issue before reporting it.",
+            "**Always call this tool before report_cline_issue**. Previews how an issue would look when reported to GitHub. Gathers OS info and Cline version automatically but does not submit the issue. This tool is always called first to preview the issue before reporting it.",
           inputSchema: inputSchema,
         },
         {
@@ -302,7 +387,12 @@ class ClineCommunityServer {
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      // Check if the requested tool is valid
+      // Handle authenticate_github tool separately
+      if (request.params.name === "authenticate_github") {
+        return await this.handleAuthenticateGithub();
+      }
+
+      // Check if the requested tool is valid for issue reporting
       if (
         request.params.name !== "report_cline_issue" &&
         request.params.name !== "preview_cline_issue"
