@@ -70,7 +70,7 @@ The server automatically collects:
 git clone git@github.com:cline/cline-community.git
 ```
 
-or 
+or if you are sure you have the gh cli,
 
 ```
 gh repo clone cline/cline-community
@@ -87,6 +87,20 @@ npm run build
 ```
 
 ### Authenticate with GH CLI
+
+```bash
+# Check to see if the user is already authenticated
+gh auth status
+```
+If they are already authenticated and there is no token in the mcp settings, grab the token and apply it to the mcp settings
+
+```
+"env": {
+  "GH_TOKEN": "token response received after gh auth login flow"
+},
+```
+
+If they are not authenticated, take the following steps:
 
 ```bash
 # Log in to GitHub
