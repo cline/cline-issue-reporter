@@ -39,150 +39,6 @@ function escapeShellArg(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
-/**
- * Function to get API metadata from task_metadata.json in the highest numbered task directory
- * across all possible IDE paths, handling different OS paths
- */
-async function getApiMetadata(): Promise<{
-  apiProvider: string;
-  modelName: string;
-  ideUsed: string;
-}> {    
-    const platform = os.platform();
-    const homeDir = os.homedir();
-    const ideApps = ["Code", "Cursor", "Windsurf"];
-    const idePath = ["User", "globalStorage", "saoudrizwan.claude-dev", "tasks"];
-    let possiblePaths: string[] = [];
-
-    // Determine paths based on operating system
-    if (platform === "win32") {
-      // Windows paths: Try to use APPDATA env var first, fall back to constructed path
-      // May require Cline MCP settings for APPDATA env variable
-      let appData;
-      if (process.env.APPDATA) {
-        appData = process.env.APPDATA;
-      } else {
-        appData = path.join(homeDir, "AppData", "Roaming");
-      }
-      possiblePaths = ideApps.map((app) => path.join(appData, app, ...idePath));
-    } else if (platform === "darwin") {
-      // macOS paths: Library/Application Support/{app}/User/globalStorage/...
-      possiblePaths = ideApps.map((app) =>
-        path.join(homeDir, "Library", "Application Support", app, ...idePath)
-      );
-    } else if (platform === "linux") {
-      // Linux paths: .config/{app}/User/globalStorage/... (common pattern)
-      possiblePaths = ideApps.map((app) =>
-        path.join(homeDir, ".config", app, ...idePath)
-      );
-    } else {
-      throw new Error(`Unsupported operating system: ${platform}`);
-    }
-
-    let highestOverallTaskNumber = -1;
-    let finalBasePath = null;
-
-    // Find the IDE path with the highest task number
-    for (const basePath of possiblePaths) {
-      try {
-        await fs.promises.stat(basePath); // Check if path exists
-
-        // Read all subdirectories
-        const entries = await fs.promises.readdir(basePath, {
-          withFileTypes: true,
-        });
-        const numericDirs = entries
-          .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
-          .map((entry) => parseInt(entry.name, 10));
-
-        if (numericDirs.length > 0) {
-          const currentHighestTaskNumber = Math.max(...numericDirs);
-
-          if (currentHighestTaskNumber > highestOverallTaskNumber) {
-            highestOverallTaskNumber = currentHighestTaskNumber;
-            finalBasePath = basePath;
-          }
-        }
-      } catch (error) {
-        // Path doesn't exist or can't be accessed, continue to next path
-        continue;
-      }
-    }
-
-    if (finalBasePath === null) {
-     throw new Error("Could not find any valid task directories");
-    }
-
-    // Extract IDE name from the path
-    let ideUsed = "Unknown";
-    const ideNames = ["Code", "Cursor", "Windsurf"];
-    for (const ideName of ideNames) {
-      if (finalBasePath.includes(ideName)) {
-        ideUsed = ideName;
-        break;
-      }
-    }
-
-    // Get the task_metadata.json file
-    const metadataFilePath = path.join(
-      finalBasePath,
-      highestOverallTaskNumber.toString(),
-      "task_metadata.json"
-    );
-
-    try {
-      const metadataContent = await fs.promises.readFile(
-        metadataFilePath,
-        "utf-8"
-      );
-      const metadata = JSON.parse(metadataContent);
-
-      if (
-        !metadata.model_usage ||
-        !Array.isArray(metadata.model_usage) ||
-        metadata.model_usage.length === 0
-      ) {
-         throw new Error(
-        "Invalid metadata format: model_usage array missing or empty"
-         );
-      }
-
-      // Find the latest entry by timestamp
-      interface ModelUsageEntry {
-        ts: number;
-        model_id: string;
-        model_provider_id: string;
-        mode?: string;
-      }
-
-      const latestEntry = metadata.model_usage.reduce(
-        (latest: ModelUsageEntry | null, current: ModelUsageEntry) => {
-          return !latest || current.ts > latest.ts ? current : latest;
-        },
-        null
-      );
-
-      if (
-        !latestEntry ||
-        !latestEntry.model_provider_id ||
-        !latestEntry.model_id
-      ) {
-        throw new Error(
-          "Invalid metadata format: latest entry missing required fields"
-        );
-      }
-
-      return {
-        apiProvider: latestEntry.model_provider_id,
-        modelName: latestEntry.model_id,
-        ideUsed: ideUsed,
-      };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Error reading or parsing metadata file: ${errorMessage}`);
-    }
-}
-
 // Input validation function
 const isValidReportArgs = (
   args: any
@@ -226,13 +82,17 @@ const inputSchema = {
   required: ["description", "title"],
 };
 
-class ClineIssueReporterServer {
+class ClineCommunityServer {
   private server: Server;
+  private platform = os.platform();
+  private homeDir = os.homedir();
+  private ideApps = ["Code", "Cursor", "Windsurf"];
+  private idePath = ["User", "globalStorage", "saoudrizwan.claude-dev", "tasks"];
 
   constructor() {
     this.server = new Server(
       {
-        name: "cline-issue-reporter",
+        name: "cline-community",
         version: "0.1.0",
       },
       {
@@ -251,6 +111,176 @@ class ClineIssueReporterServer {
       await this.server.close();
       process.exit(0);
     });
+  }
+
+  private async checkGhAuth() {
+    let ghToken = null;
+    for (const ide of this.ideApps) {
+      const settingsPath = path.join(os.homedir(), 'Library', 'Application Support', ide, 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
+      try {
+        const settingsContent = await fs.promises.readFile(settingsPath, 'utf-8');
+        const settings = JSON.parse(settingsContent);
+        ghToken = settings?.mcpServers?.['cline-community']?.env?.GH_TOKEN;
+
+        if (!ghToken) {
+          console.warn("GH_TOKEN not found in cline_mcp_settings.json. Prompting for gh auth login...");
+          // Execute gh auth login - requires user interaction in the terminal
+          exec('gh auth status', (error, stdout, stderr) => {
+            if (error) {
+              console.error(`gh auth login failed: ${error.message}`);
+              return;
+            }
+            if (stderr) {
+              console.error(`gh auth login stderr: ${stderr}`);
+              return;
+            }
+            console.log(`gh auth login stdout: ${stdout}`);
+          });
+        }
+      } catch (error) {
+        console.error(`Error reading cline_mcp_settings.json: ${error}`);
+        console.warn("Could not check for GH_TOKEN. Please ensure gh CLI is installed and authenticated (`gh auth login`).");
+      }
+    }
+  }
+
+  /**
+ * Function to get API metadata from task_metadata.json in the highest numbered task directory
+ * across all possible IDE paths, handling different OS paths
+ */
+  async getApiMetadata(): Promise<{
+    apiProvider: string;
+    modelName: string;
+    ideUsed: string;
+  }> {
+    let possiblePaths: string[] = [];
+
+    // Determine paths based on operating system
+    if (this.platform === "win32") {
+      // Windows paths: Try to use APPDATA env var first, fall back to constructed path
+      // May require Cline MCP settings for APPDATA env variable
+      let appData;
+      if (process.env.APPDATA) {
+        appData = process.env.APPDATA;
+      } else {
+        appData = path.join(this.homeDir, "AppData", "Roaming");
+      }
+      possiblePaths = this.ideApps.map((app) => path.join(appData, app, ...this.idePath));
+    } else if (this.platform === "darwin") {
+      // macOS paths: Library/Application Support/{app}/User/globalStorage/...
+      possiblePaths = this.ideApps.map((app) =>
+        path.join(this.homeDir, "Library", "Application Support", app, ...this.idePath)
+      );
+    } else if (this.platform === "linux") {
+      // Linux paths: .config/{app}/User/globalStorage/... (common pattern)
+      possiblePaths = this.ideApps.map((app) =>
+        path.join(this.homeDir, ".config", app, ...this.idePath)
+      );
+    } else {
+      throw new Error(`Unsupported operating system: ${this.platform}`);
+    }
+
+    let highestOverallTaskNumber = -1;
+    let finalBasePath = null;
+
+    // Find the IDE path with the highest task number
+    for (const basePath of possiblePaths) {
+      try {
+        await fs.promises.stat(basePath); // Check if path exists
+
+        // Read all subdirectories
+        const entries = await fs.promises.readdir(basePath, {
+          withFileTypes: true,
+        });
+        const numericDirs = entries
+          .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+          .map((entry) => parseInt(entry.name, 10));
+
+        if (numericDirs.length > 0) {
+          const currentHighestTaskNumber = Math.max(...numericDirs);
+
+          if (currentHighestTaskNumber > highestOverallTaskNumber) {
+            highestOverallTaskNumber = currentHighestTaskNumber;
+            finalBasePath = basePath;
+          }
+        }
+      } catch (error) {
+        // Path doesn't exist or can't be accessed, continue to next path
+        continue;
+      }
+    }
+
+    if (finalBasePath === null) {
+      throw new Error("Could not find any valid task directories");
+    }
+
+    // Extract IDE name from the path
+    let ideUsed = "Unknown";
+    for (const ideName of this.ideApps) {
+      if (finalBasePath.includes(ideName)) {
+        ideUsed = ideName;
+        break;
+      }
+    }
+
+    // Get the task_metadata.json file
+    const metadataFilePath = path.join(
+      finalBasePath,
+      highestOverallTaskNumber.toString(),
+      "task_metadata.json"
+    );
+
+    try {
+      const metadataContent = await fs.promises.readFile(
+        metadataFilePath,
+        "utf-8"
+      );
+      const metadata = JSON.parse(metadataContent);
+
+      if (
+        !metadata.model_usage ||
+        !Array.isArray(metadata.model_usage) ||
+        metadata.model_usage.length === 0
+      ) {
+        throw new Error(
+          "Invalid metadata format: model_usage array missing or empty"
+        );
+      }
+
+      // Find the latest entry by timestamp
+      interface ModelUsageEntry {
+        ts: number;
+        model_id: string;
+        model_provider_id: string;
+        mode?: string;
+      }
+
+      const latestEntry = metadata.model_usage.reduce(
+        (latest: ModelUsageEntry | null, current: ModelUsageEntry) => {
+          return !latest || current.ts > latest.ts ? current : latest;
+        },
+        null
+      );
+
+      if (
+        !latestEntry ||
+        !latestEntry.model_provider_id ||
+        !latestEntry.model_id
+      ) {
+        throw new Error(
+          "Invalid metadata format: latest entry missing required fields"
+        );
+      }
+
+      return {
+        apiProvider: latestEntry.model_provider_id,
+        modelName: latestEntry.model_id,
+        ideUsed: ideUsed,
+      };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error reading or parsing metadata file: ${errorMessage}`);
+    }
   }
 
   private setupToolHandlers() {
@@ -295,14 +325,10 @@ class ClineIssueReporterServer {
       const repo = "cline/cline"; // Hardcoded repository
 
       try {
-        // 1. Get OS Info
-        const osPlatform = os.platform();
-        const osRelease = os.release();
-
         // Get API info from metadata
         let apiProvider, modelName, ideUsed;
         try {
-          const apiMetadata = await getApiMetadata();
+          const apiMetadata = await this.getApiMetadata();
           apiProvider = apiMetadata.apiProvider;
           modelName = apiMetadata.modelName;
           ideUsed = apiMetadata.ideUsed;
@@ -323,14 +349,12 @@ class ClineIssueReporterServer {
         // 2. Get Cline Version - using a cross-platform approach
         let clineVersion = "unknown";
         try {
-          const platform = os.platform();
-          const isWindows = platform === "win32";
-          
+          const isWindows = this.platform === "win32";
+
           if (isWindows) {
             // On Windows, try to find the extension directly in the file system
-            const homeDir = os.homedir();
             const extensionPaths = [];
-            
+
             // Add possible extension paths for different IDEs on Windows
             if (process.env.APPDATA) {
               const appData = process.env.APPDATA;
@@ -340,22 +364,22 @@ class ClineIssueReporterServer {
                 path.join(appData, "Windsurf", "User", "extensions")
               );
             } else {
-              const appData = path.join(homeDir, "AppData", "Roaming");
+              const appData = path.join(this.homeDir, "AppData", "Roaming");
               extensionPaths.push(
                 path.join(appData, "Code", "User", "extensions"),
                 path.join(appData, "Cursor", "User", "extensions"),
                 path.join(appData, "Windsurf", "User", "extensions")
               );
             }
-            
+
             // Also try .vscode/extensions in the home directory
-            extensionPaths.push(path.join(homeDir, ".vscode", "extensions"));
-            
+            extensionPaths.push(path.join(this.homeDir, ".vscode", "extensions"));
+
             // Try to find the extension in each path
             for (const extPath of extensionPaths) {
               try {
                 const entries = await fs.promises.readdir(extPath, { withFileTypes: true });
-                
+
                 // Look for directories that start with "saoudrizwan.claude-dev"
                 for (const entry of entries) {
                   if (entry.isDirectory() && entry.name.startsWith("saoudrizwan.claude-dev")) {
@@ -365,7 +389,7 @@ class ClineIssueReporterServer {
                       clineVersion = versionMatch[1];
                       break;
                     }
-                    
+
                     // If no version in directory name, try to read package.json
                     try {
                       const packageJsonPath = path.join(extPath, entry.name, "package.json");
@@ -380,7 +404,7 @@ class ClineIssueReporterServer {
                     }
                   }
                 }
-                
+
                 if (clineVersion !== "unknown") {
                   break; // Found version, exit the loop
                 }
@@ -425,7 +449,7 @@ class ClineIssueReporterServer {
         const formattedBody = `**Reported by:** User via Cline Issue Reporter MCP
 **Cline Version:** ${clineVersion}
 **IDE:** ${ideUsed}
-**OS:** ${osPlatform} (${osRelease})
+**OS:** ${this.platform} (${os.release()})
 **API Provider:** ${apiProvider}
 **Model:** ${modelName}
 
@@ -538,8 +562,7 @@ ${description}`;
         // Otherwise, rethrow as internal server error
         throw new McpError(
           ErrorCode.InternalError,
-          `Failed to report issue: ${
-            error instanceof Error ? error.message : String(error)
+          `Failed to report issue: ${error instanceof Error ? error.message : String(error)
           }`
         );
       }
@@ -547,11 +570,12 @@ ${description}`;
   }
 
   async run() {
+    await this.checkGhAuth(); // Check for GH auth on startup
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("Cline Issue Reporter MCP server running on stdio");
+    console.error("Cline Community MCP server running on stdio");
   }
 }
 
-const server = new ClineIssueReporterServer();
+const server = new ClineCommunityServer();
 server.run().catch(console.error);

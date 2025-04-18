@@ -61,7 +61,6 @@ The server automatically collects:
 
 - GitHub CLI (`gh`) installed and authenticated
 - Access to task metadata directories (where Cline stores information about the current task)
-- Github token
 
 ## Installation
 
@@ -74,6 +73,32 @@ npm install
 # Build the server
 npm run build
 ```
+
+### Authenticate with GH CLI
+
+Log in to GitHub
+
+```bash
+gh auth login
+```
+
+Select GitHub.com for where you use GitHub
+
+Select HTTPS for your your preferred protocol
+
+Indicate Yes that you want to authenticate
+
+Select Login with a web browser
+
+Copy your one-time code
+
+Presss Enter
+
+Login in the bowser
+
+Enter the code that you copied
+
+Continue
 
 ### Configure with Cline
 
