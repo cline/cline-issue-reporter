@@ -64,6 +64,18 @@ The server automatically collects:
 
 ## Installation
 
+### Clone the repo
+
+```
+git clone git@github.com:cline/cline-community.git
+```
+
+or 
+
+```
+gh repo clone cline/cline-community
+```
+
 ### Build from Source
 
 ```bash
