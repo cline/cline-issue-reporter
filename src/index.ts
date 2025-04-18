@@ -368,7 +368,7 @@ class ClineCommunityServer {
         {
           name: "authenticate_github",
           description:
-            "**Call this tool if the user is not already authenticated and does not have a valid GH_TOKEN**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal.",
+            "**Call this tool if the user is not already authenticated and does not have a valid GH_TOKEN**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal. Please wait for the user to finish authentication before calling other tools.",
           inputSchema: emptySchema,
         },
         {
