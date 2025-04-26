@@ -88,16 +88,11 @@ npm run build
 
 ### Authenticate with GH CLI
 
+This MCP server relies on the authentication status of your installed GitHub CLI (`gh`). Ensure you are logged in:
+
 ```bash
 # Check to see if the user is already authenticated
 gh auth status
-```
-If they are already authenticated and there is no token in the mcp settings, grab the token and apply it to the mcp settings
-
-```
-"env": {
-  "GH_TOKEN": "token response received after gh auth login flow"
-},
 ```
 
 If they are not authenticated, take the following steps:
@@ -176,9 +171,6 @@ Add to Cline MCP settings:
       "timeout": 10,
       "command": "node",
       "args": ["/path/to/cline-community/build/index.js"],
-      "env": {
-        "GH_TOKEN": "token response received after gh auth login flow"
-      },
       "transportType": "stdio"
     }
   }

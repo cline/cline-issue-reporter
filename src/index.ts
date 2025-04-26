@@ -120,33 +120,29 @@ class ClineCommunityServer {
     });
   }
 
+  /**
+   * Checks GitHub CLI authentication status on startup.
+   */
   private async checkGhAuth() {
-    let ghToken = null;
-    for (const ide of this.ideApps) {
-      const settingsPath = path.join(os.homedir(), 'Library', 'Application Support', ide, 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
-      try {
-        const settingsContent = await fs.promises.readFile(settingsPath, 'utf-8');
-        const settings = JSON.parse(settingsContent);
-        ghToken = settings?.mcpServers?.['cline-community']?.env?.GH_TOKEN;
+    try {
+      const { stdout, stderr } = await execAsync('gh auth status');
 
-        if (!ghToken) {
-          console.warn("GH_TOKEN not found in cline_mcp_settings.json. Prompting for gh auth login...");
-          // Execute gh auth login - requires user interaction in the terminal
-          exec('gh auth status', (error, stdout, stderr) => {
-            if (error) {
-              console.error(`gh auth login failed: ${error.message}`);
-              return;
-            }
-            if (stderr) {
-              console.error(`gh auth login stderr: ${stderr}`);
-              return;
-            }
-            console.log(`gh auth login stdout: ${stdout}`);
-          });
+      if (stdout.includes("Logged in to")) {
+        console.log("GitHub CLI is authenticated.");
+      } else {
+        // Handle cases where gh might report status differently or user is not logged in
+        console.warn("GitHub CLI is not authenticated. Please run `gh auth login` manually or use the 'authenticate_github' tool if needed.");
+        if (stderr) {
+          console.warn(`gh auth status stderr: ${stderr.trim()}`);
         }
-      } catch (error) {
-        console.error(`Error reading cline_mcp_settings.json: ${error}`);
-        console.warn("Could not check for GH_TOKEN. Please ensure gh CLI is installed and authenticated (`gh auth login`).");
+      }
+    } catch (error: any) {
+      // Handle errors like 'gh' command not found
+      console.error("Error checking GitHub CLI authentication status:", error.message || error);
+      if (error.stderr && (error.stderr.includes("command not found") || error.stderr.includes("gh not found"))) {
+        console.error("Error: GitHub CLI ('gh') not found. Please install it: https://cli.github.com/");
+      } else {
+        console.error("Please ensure the GitHub CLI ('gh') is installed and authenticated (`gh auth login`).");
       }
     }
   }
@@ -368,7 +364,7 @@ class ClineCommunityServer {
         {
           name: "authenticate_github",
           description:
-            "**Call this tool if the user is not already authenticated and does not have a valid GH_TOKEN**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal. Please wait for the user to finish authentication before calling other tools.",
+            "**Call this tool if the user is not already authenticated**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal. Please wait for the user to finish authentication before calling other tools.",
           inputSchema: emptySchema,
         },
         {
