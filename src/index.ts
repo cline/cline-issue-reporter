@@ -64,11 +64,11 @@ const inputSchema = {
   properties: {
     description: {
       type: "string",
-      description: "The user's detailed description of the problem.",
+      description: "The user's detailed description of the problem. This should be a detailed description of the problem, including steps to reproduce it, without any secrets or personal information.",
     },
     title: {
       type: "string",
-      description: "The title for the GitHub issue.",
+      description: "The title for the GitHub issue. This should be a concise title that captures the problem, without any secrets or personal information.",
     },
     labels: {
       type: "array",
@@ -364,7 +364,7 @@ class ClineCommunityServer {
         {
           name: "authenticate_github",
           description:
-            "**Call this tool if the user is not already authenticated**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal. Please wait for the user to finish authentication before calling other tools.",
+            "**Call this tool if the user is not already authenticated**. Initiates GitHub authentication using the `gh` CLI. Checks current status first and prompts for login if needed. This may require user interaction in the terminal. Please wait for the user to finish authentication before calling other tools. Once they are done, you may receive a GH_TOKEN that you can store in the env object of cline-community mcp settings in the cline_mcp_settings.json file.",
           inputSchema: emptySchema,
         },
         {
@@ -532,14 +532,15 @@ class ClineCommunityServer {
         }
 
         // 3. Format Issue Body
-        const formattedBody = `**Reported by:** User via Cline Issue Reporter MCP
+        const formattedBody = `
+**Reported by:** User via Cline Issue Reporter MCP
 **Cline Version:** ${clineVersion}
 **IDE:** ${ideUsed}
 **OS:** ${this.platform} (${os.release()})
 **API Provider:** ${apiProvider}
 **Model:** ${modelName}
 
----
+--------------------------------------------------
 
 **Description:**
 ${description}`;
@@ -555,6 +556,8 @@ ${description}`;
             ],
           };
         }
+        const { stdout: ghToken } = await execAsync('gh auth token');
+        const trimmedToken = ghToken.trim(); // Remove any whitespace or newlines
 
         // 4. Construct gh Command (only for report_cline_issue)
         let ghCommand = `gh issue create --repo ${escapeShellArg(
@@ -573,7 +576,8 @@ ${description}`;
         // 5. Execute gh Command
         console.log(`Executing: ${ghCommand}`); // Log the command for debugging
         const { stdout: ghStdout, stderr: ghStderr } = await execAsync(
-          ghCommand
+          ghCommand,
+          { env: { ...process.env, GH_TOKEN: trimmedToken } }
         );
 
         if (ghStderr) {

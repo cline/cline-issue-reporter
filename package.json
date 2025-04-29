@@ -4,12 +4,6 @@
   "description": "A Model Context Protocol server",
   "private": true,
   "type": "module",
-  "bin": {
-    "cline-community": "./build/index.js"
-  },
-  "files": [
-    "build"
-  ],
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
@@ -17,10 +11,10 @@
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0"
+    "@modelcontextprotocol/sdk": "1.10.2"
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
-    "typescript": "^5.3.3"
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
   }
 }

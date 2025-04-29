@@ -147,7 +147,15 @@ Press Enter to open https://github.com/login/device in your browser...
 
 9. Continue
 
-10. You're ready to use cline community!
+10. Get your token
+```bash
+# get your token
+gh auth token
+```
+
+11. Save it to the envobject in your cline_mcp_settings.json
+
+12. You're ready to use cline community!
 
 ### Configure with Cline
 
@@ -171,7 +179,10 @@ Add to Cline MCP settings:
       "timeout": 10,
       "command": "node",
       "args": ["/path/to/cline-community/build/index.js"],
-      "transportType": "stdio"
+      "transportType": "stdio",
+      "env": {
+        "GH_TOKEN": "YOUR TOKEN HERE"
+      }
     }
   }
 }
@@ -185,10 +196,17 @@ On Windows, you may need to explicitly set the APPDATA environment variable in t
 {
   "mcpServers": {
     "cline-community": {
+      "autoApprove": [
+        "preview_cline_issue"
+      ],
+      "timeout": 10,
       "command": "node",
       "args": ["/path/to/cline-community/build/index.js"],
       "env": {
         "APPDATA": "C:\\Users\\[username]\\AppData\\Roaming"
+      },
+       "env": {
+        "GH_TOKEN": "YOUR TOKEN HERE"
       }
     }
   }
